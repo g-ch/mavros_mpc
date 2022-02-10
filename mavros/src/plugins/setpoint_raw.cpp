@@ -21,6 +21,8 @@
 #include <mavros_msgs/AttitudeTarget.h>
 #include <mavros_msgs/PositionTarget.h>
 #include <mavros_msgs/GlobalPositionTarget.h>
+#include "mav_msgs/RollPitchYawrateThrust.h"
+#include <tf/transform_datatypes.h>
 
 namespace mavros {
 namespace std_plugins {
@@ -48,6 +50,7 @@ public:
 		local_sub = sp_nh.subscribe("local", 10, &SetpointRawPlugin::local_cb, this);
 		global_sub = sp_nh.subscribe("global", 10, &SetpointRawPlugin::global_cb, this);
 		attitude_sub = sp_nh.subscribe("attitude", 10, &SetpointRawPlugin::attitude_cb, this);
+        rpyt_sub = sp_nh.subscribe("roll_pitch_yawrate_thrust", 1, &SetpointRawPlugin::rpyt_cb, this);
 		target_local_pub = sp_nh.advertise<mavros_msgs::PositionTarget>("target_local", 10);
 		target_global_pub = sp_nh.advertise<mavros_msgs::GlobalPositionTarget>("target_global", 10);
 		target_attitude_pub = sp_nh.advertise<mavros_msgs::AttitudeTarget>("target_attitude", 10);
@@ -75,7 +78,7 @@ private:
 	friend class SetAttitudeTargetMixin;
 	ros::NodeHandle sp_nh;
 
-	ros::Subscriber local_sub, global_sub, attitude_sub;
+	ros::Subscriber local_sub, global_sub, attitude_sub, rpyt_sub;
 	ros::Publisher target_local_pub, target_global_pub, target_attitude_pub;
 
 	double thrust_scaling;
@@ -275,6 +278,42 @@ private:
 					thrust);
 
 	}
+
+
+	void rpyt_cb(const mav_msgs::RollPitchYawrateThrustConstPtr &msg)
+    {
+	    /// TODO: Find why do we need yaw_rate_scaling_ and system_mass_kg_
+
+        uint8_t type_mask = 0;
+        geometry_msgs::Quaternion orientation = tf::createQuaternionMsgFromRollPitchYaw(msg->roll, msg->pitch, 0);
+//        double thrust = std::min(1.0, std::max(0.0, msg->thrust.z * thrust_scaling * system_mass_kg_));
+        double thrust = std::min(1.0, std::max(0.0, msg->thrust.z * thrust_scaling)); ///CHG
+
+        Eigen::Quaterniond desired_orientation;
+        Eigen::Vector3d body_rate;
+        tf::quaternionMsgToEigen(orientation, desired_orientation);
+
+        // Transform desired orientation to represent aircraft->NED,
+        // MAVROS operates on orientation of base_link->ENU
+
+        auto ned_desired_orientation = ftf::transform_orientation_enu_ned(
+                ftf::transform_orientation_baselink_aircraft(
+                        desired_orientation));
+        body_rate.x() = 0;
+        body_rate.y() = 0;
+        body_rate.z() = msg->yaw_rate; ///CHG
+//        body_rate.z() = -yaw_rate_scaling_ * msg->yaw_rate;
+
+        set_attitude_target(msg->header.stamp.toNSec() / 1000000, type_mask,
+                            ned_desired_orientation, body_rate, thrust);
+    }
+
+
+    void rpyt_2_cb()
+    {
+
+    }
+
 };
 }	// namespace std_plugins
 }	// namespace mavros
