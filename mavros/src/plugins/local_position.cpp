@@ -64,6 +64,7 @@ public:
 		local_velocity_cov = lp_nh.advertise<geometry_msgs::TwistWithCovarianceStamped>("velocity_body_cov", 10);
 		local_accel = lp_nh.advertise<geometry_msgs::AccelWithCovarianceStamped>("accel", 10);
 		local_odom = lp_nh.advertise<nav_msgs::Odometry>("odom",10);
+		local_odom_local = lp_nh.advertise<nav_msgs::Odometry>("odom_local",10);
 	}
 
 	Subscriptions get_subscriptions() override {
@@ -83,6 +84,7 @@ private:
 	ros::Publisher local_velocity_cov;
 	ros::Publisher local_accel;
 	ros::Publisher local_odom;
+	ros::Publisher local_odom_local; //chg
 
 	std::string frame_id;		//!< frame for Pose
 	std::string tf_frame_id;	//!< origin for TF
@@ -160,6 +162,12 @@ private:
 						twist_local->twist.angular);
 
 		local_velocity_local.publish(twist_local);
+		
+		// local odom. chg, change velocity to enu frame
+		auto odom_local_msg = odom;
+		odom_local_msg->twist.twist.linear = twist_local->twist.linear;
+		odom_local_msg->twist.twist.angular = twist_local->twist.angular;
+		local_odom_local.publish(odom_local_msg);
 
 		// publish tf
 		publish_tf(odom);
