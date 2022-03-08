@@ -301,7 +301,7 @@ private:
                         desired_orientation));
         body_rate.x() = 0;
         body_rate.y() = 0;
-        body_rate.z() = msg->yaw_rate; ///CHG
+        body_rate.z() = -msg->yaw_rate; ///CHG
 //        body_rate.z() = -yaw_rate_scaling_ * msg->yaw_rate;
 
         set_attitude_target(msg->header.stamp.toNSec() / 1000000, type_mask,
